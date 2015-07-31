@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Universal JS Todo</title>
+</head>
+<body>
+<div id="todo" th:utext="${todo}"></div>
+
+<script th:inline="javascript">
+  Todo.initTodo(/*data*/, document.getElementById("todo"))
+</script>
+</body>
+</html>
