@@ -7,6 +7,10 @@ buildscript {
     }
 }
 
+plugins {
+    id "com.moowork.node" version "0.10"
+}
+
 apply plugin: 'java'
 apply plugin: 'spring-boot'
 
@@ -37,3 +41,5 @@ dependencies {
     testCompile("org.springframework.boot:spring-boot-starter-test")
     testCompile("junit:junit")
 }
+
+processResources.dependsOn npm_run_build
