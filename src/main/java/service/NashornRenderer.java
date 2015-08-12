@@ -3,62 +3,96 @@ package service;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import javax.annotation.PreDestroy;
-import javax.script.Bindings;
-import javax.script.ScriptContext;
-import javax.script.ScriptException;
-import javax.script.SimpleScriptContext;
-import javax.servlet.ServletContext;
+import javax.script.*;
 
 import jdk.nashorn.api.scripting.NashornScriptEngine;
 import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
 import jdk.nashorn.api.scripting.URLReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import static java.lang.ThreadLocal.withInitial;
-import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.stream.Collectors.toList;
 import static javax.script.ScriptContext.ENGINE_SCOPE;
 import static service.JsComponentImpl.GLOBAL_LOCATION_NAME;
 import static service.JsComponentImpl.GLOBAL_PROPS_NAME;
 
 @Service
-public class NashornRenderer implements JsRenderer {
+public class NashornRenderer<T> implements JsRenderer<T> {
 
     private static final Logger LOG = LoggerFactory.getLogger(NashornRenderer.class);
     //private static final MetricNameStatsdClient statsd = StatsdClient.from(NashornRenderer.class);
     private static final String[] NASHORN_OPTS = {"--persistent-code-cache", "--optimistic-types"};
-    private static final String[] JS_FILES = {
-            "/jsdist/nashorn/oppdrag.js"
-    };
+//    private static final String[] JS_FILES = {
+//            "/jsdist/nashorn/oppdrag.js"
+//    };
 
     private final ExecutorService pool = Executors.newFixedThreadPool(6);
     private final AtomicReference<RenderFn> renderFn = new AtomicReference<>((a, b) -> () -> "");
+    private final AtomicReference<T> proxyObject = new AtomicReference<>();
     private final AtomicLong lastModified = new AtomicLong();
+    private final Class<T> clazz;
     private final List<File> jsFiles;
-    private final boolean jsReloadingEnabled;
+    private final boolean isReloadingEnabled;
+    private final Optional<String> jsNamespace;
 
-    @Autowired
-    public NashornRenderer(ServletContext context,
-                           @Value("${isJsReloadingEnabled}") boolean jsReloadingEnabled) throws IOException {
-        this.jsReloadingEnabled = jsReloadingEnabled;
-        this.jsFiles = stream(JS_FILES)
-                .map(context::getRealPath)
-                .map(File::new)
-                .collect(toList());
+    public static class Builder<T> {
+        // Required parameters
+        private final Class<T> clazz;
+        private final List<File> jsFiles;
+
+        // Optional parameters
+        private Optional<String> jsNamespace = Optional.ofNullable(null);
+        private boolean isReloadingEnabled = false;
+        // TODO More? logger/debug, stats, nashorn opts, thread pool size...
+
+        public Builder(Class<T> clazz, List<File> jsFiles) {
+            this.clazz = clazz;
+            this.jsFiles = jsFiles;
+        }
+
+        public Builder enableReloading() {
+            this.isReloadingEnabled = true;
+            return this;
+        }
+
+        public Builder jsNamespace(String ns) {
+            this.jsNamespace = Optional.ofNullable(ns);
+            return this;
+        }
+
+        public NashornRenderer<T> build() {
+            return new NashornRenderer<>(this);
+        }
+    }
+
+    private NashornRenderer(Builder<T> builder) {
+        clazz = builder.clazz;
+        jsFiles = builder.jsFiles;
+        isReloadingEnabled = builder.isReloadingEnabled;
+        jsNamespace = builder.jsNamespace;
         pool.execute(this::loadJs);
     }
+
+//    @Autowired
+//    public NashornRenderer(ServletContext context,
+//                           @Value("${isJsReloadingEnabled}") boolean jsReloadingEnabled) throws IOException {
+//        this.jsReloadingEnabled = jsReloadingEnabled;
+//        this.jsFiles = stream(JS_FILES)
+//                .map(context::getRealPath)
+//                .map(File::new)
+//                .collect(toList());
+//        pool.execute(this::loadJs);
+//    }
 
     private void loadJs() {
         try {
@@ -69,13 +103,16 @@ public class NashornRenderer implements JsRenderer {
 
                     try {
                         localContext.get();
-                        renderFn.set(getRenderFn(engine, localContext));
+                        proxyObject.set(jsNamespace
+                                .map(ns -> engine.getInterface(engine.get(ns), clazz))
+                                .orElseGet(() -> engine.getInterface(clazz)));
+//                        renderFn.set(getRenderFn(engine, localContext));
                     } catch (RuntimeException e) {
                         LOG.error("Could not load JS", e);
                     }
                 }
                 Thread.sleep(200);
-            } while (jsReloadingEnabled);
+            } while (isReloadingEnabled);
         } catch (InterruptedException e) {
             LOG.info("Nashorn interrupted, will exit.");
         } catch (RuntimeException e) {
@@ -122,8 +159,8 @@ public class NashornRenderer implements JsRenderer {
     }
 
     @Override
-    public Supplier<String> render(JsComponent component, JsComponentState state) {
-        return renderFn.get().apply(component, state);
+    public T getProxyObject() {
+        return proxyObject.get();
     }
 
     private RenderFn getRenderFn(NashornScriptEngine engine, ThreadLocal<ScriptContext> context) {

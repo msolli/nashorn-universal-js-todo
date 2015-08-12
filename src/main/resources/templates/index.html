@@ -5,10 +5,6 @@
   <title>Universal JS Todo</title>
 </head>
 <body>
-<div id="todo" th:utext="${todo}"></div>
-
-<script th:inline="javascript">
-  Todo.initTodo(/*data*/, document.getElementById("todo"))
-</script>
+<div id="todo" th:utext="${todo}">rendered todo app goes here</div>
 </body>
 </html>
