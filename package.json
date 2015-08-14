@@ -5,7 +5,7 @@
   "private": "true",
   "scripts": {
     "build": "npm run build:js",
-    "build:js": "npm run build:js:client",
+    "build:js": "npm run build:js:client && npm run build:js:server",
     "build:js:client": "webpack --config webpack.client-config.js",
     "build:js:server": "webpack --config webpack.server-config.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -13,6 +13,8 @@
   "author": "Martin Solli",
   "license": "MIT",
   "dependencies": {
+    "core-js": "^1.0.1",
+    "react": "^0.13.3",
     "webpack": "^1.11.0"
   },
   "devDependencies": {

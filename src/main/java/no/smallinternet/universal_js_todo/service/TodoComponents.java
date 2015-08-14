@@ -1,4 +1,4 @@
-package todo;
+package no.smallinternet.universal_js_todo.service;
 
 import java.util.Map;
 

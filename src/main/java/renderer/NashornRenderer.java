@@ -1,4 +1,4 @@
-package service;
+package renderer;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,7 +10,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import javax.annotation.PreDestroy;
-import javax.script.*;
+import javax.script.Bindings;
+import javax.script.ScriptContext;
+import javax.script.ScriptException;
+import javax.script.SimpleScriptContext;
 
 import jdk.nashorn.api.scripting.NashornScriptEngine;
 import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
@@ -23,8 +26,8 @@ import static java.lang.ThreadLocal.withInitial;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static javax.script.ScriptContext.ENGINE_SCOPE;
-import static service.JsComponentImpl.GLOBAL_LOCATION_NAME;
-import static service.JsComponentImpl.GLOBAL_PROPS_NAME;
+import static renderer.JsComponentImpl.GLOBAL_LOCATION_NAME;
+import static renderer.JsComponentImpl.GLOBAL_PROPS_NAME;
 
 @Service
 public class NashornRenderer<T> implements JsRenderer<T> {
@@ -43,6 +46,7 @@ public class NashornRenderer<T> implements JsRenderer<T> {
     private final Class<T> clazz;
     private final List<File> jsFiles;
     private final boolean isReloadingEnabled;
+    private final boolean isAsyncInit;
     private final Optional<String> jsNamespace;
 
     public static class Builder<T> {
@@ -53,6 +57,8 @@ public class NashornRenderer<T> implements JsRenderer<T> {
         // Optional parameters
         private Optional<String> jsNamespace = Optional.ofNullable(null);
         private boolean isReloadingEnabled = false;
+        private boolean isAsyncInit = true;
+
         // TODO More? logger/debug, stats, nashorn opts, thread pool size...
 
         public Builder(Class<T> clazz, List<File> jsFiles) {
@@ -62,6 +68,11 @@ public class NashornRenderer<T> implements JsRenderer<T> {
 
         public Builder enableReloading() {
             this.isReloadingEnabled = true;
+            return this;
+        }
+
+        public Builder disableAsyncInitialization() {
+            this.isAsyncInit = false;
             return this;
         }
 
@@ -79,8 +90,9 @@ public class NashornRenderer<T> implements JsRenderer<T> {
         clazz = builder.clazz;
         jsFiles = builder.jsFiles;
         isReloadingEnabled = builder.isReloadingEnabled;
+        isAsyncInit = builder.isAsyncInit;
         jsNamespace = builder.jsNamespace;
-        pool.execute(this::loadJs);
+        init();
     }
 
 //    @Autowired
@@ -94,25 +106,33 @@ public class NashornRenderer<T> implements JsRenderer<T> {
 //        pool.execute(this::loadJs);
 //    }
 
+    private void init() {
+
+        if (isAsyncInit) {
+            pool.execute(this::loadJs);
+        } else {
+            loadJs();
+        }
+    }
+
     private void loadJs() {
         try {
-            final NashornScriptEngine engine = getEngine();
             do {
-                if (filesChanged()) {
-                    final ThreadLocal<ScriptContext> localContext = withInitial(() -> initScriptContext(engine));
+                final ThreadLocal<NashornScriptEngine> engine = withInitial(() -> initEngine());
 
-                    try {
-                        localContext.get();
-                        proxyObject.set(jsNamespace
-                                .map(ns -> engine.getInterface(engine.get(ns), clazz))
-                                .orElseGet(() -> engine.getInterface(clazz)));
+                try {
+                    T yo = engine.get().getInterface(clazz);
+                    LOG.info("yo {}", yo.toString());
+                    proxyObject.set(jsNamespace
+                            .map(ns -> engine.get().getInterface(engine.get().get(ns), clazz))
+                            .orElseGet(() -> engine.get().getInterface(clazz)));
+
 //                        renderFn.set(getRenderFn(engine, localContext));
-                    } catch (RuntimeException e) {
-                        LOG.error("Could not load JS", e);
-                    }
+                } catch (RuntimeException e) {
+                    LOG.error("Could not load JS", e);
                 }
                 Thread.sleep(200);
-            } while (isReloadingEnabled);
+            } while (isReloadingEnabled && filesChanged());
         } catch (InterruptedException e) {
             LOG.info("Nashorn interrupted, will exit.");
         } catch (RuntimeException e) {
@@ -122,17 +142,27 @@ public class NashornRenderer<T> implements JsRenderer<T> {
 
     private ScriptContext initScriptContext(NashornScriptEngine engine) {
         final String threadName = Thread.currentThread().getName();
-        LOG.debug("Initializing Nashorn ({})", threadName);
+        LOG.info("Initializing Nashorn ({})", threadName);
         final Bindings global = engine.createBindings();
         final ScriptContext context = new SimpleScriptContext();
         context.setBindings(global, ENGINE_SCOPE);
         jsFiles.forEach(f -> load(engine, context, f));
-        LOG.debug("Nashorn initialized ({})", threadName);
+        LOG.info("Nashorn initialized ({})", threadName);
         return context;
+    }
+
+    private NashornScriptEngine initEngine() {
+        final String threadName = Thread.currentThread().getName();
+        LOG.info("Initializing Nashorn ({})", threadName);
+        final NashornScriptEngine engine = getEngine();
+        jsFiles.forEach(f -> load(engine, f));
+        LOG.info("Nashorn initialized ({})", threadName);
+        return engine;
     }
 
     private static NashornScriptEngine getEngine() {
         final NashornScriptEngineFactory engineFactory = new NashornScriptEngineFactory();
+
         try {
             return (NashornScriptEngine) engineFactory.getScriptEngine(NASHORN_OPTS);
         } catch (IllegalArgumentException e) {
@@ -153,6 +183,15 @@ public class NashornRenderer<T> implements JsRenderer<T> {
         try {
             LOG.debug("Loading JS file {}", f.getName());
             engine.eval(new URLReader(f.toURI().toURL()), context);
+        } catch (IOException | ScriptException e) {
+            throw new RuntimeException("Error loading JS file " + f.getName(), e);
+        }
+    }
+
+    private static void load(NashornScriptEngine engine, File f) {
+        try {
+            LOG.debug("Loading JS file {}", f.getName());
+            engine.eval(new URLReader(f.toURI().toURL()));
         } catch (IOException | ScriptException e) {
             throw new RuntimeException("Error loading JS file " + f.getName(), e);
         }

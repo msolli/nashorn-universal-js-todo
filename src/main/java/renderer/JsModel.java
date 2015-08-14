@@ -1,9 +1,9 @@
-package service;
+package renderer;
 
 import java.util.Map;
 
-import static service.Util.capitalize;
-import static service.Util.toJson;
+import static renderer.Util.capitalize;
+import static renderer.Util.toJson;
 
 /*
 * View model for rendered JS component. Handles output of:

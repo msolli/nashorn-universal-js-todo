@@ -5,7 +5,9 @@
   <title>Universal JS Todo</title>
 </head>
 <body>
-<div id="todo" th:utext="${todo}">rendered todo app goes here</div>
-<script src="/dist/todo.js"></script>
+<div th:utext="${todo.containerWithMarkup}"></div>
+<!--<script src="/dist/todo-client.js"></script>-->
+<!--<script th:utext="${todo.initFnCall}"></script>-->
 </body>
 </html>
+

@@ -9,7 +9,10 @@ var plugins = (function (plugins) {
     }));
 
     if (PRODUCTION) {
-        plugins.push(new webpack.optimize.UglifyJsPlugin());
+        plugins.push(new webpack.optimize.UglifyJsPlugin({
+            mangle: false,
+            beautify: true
+        }));
     }
 
     return plugins;
@@ -18,11 +21,11 @@ var plugins = (function (plugins) {
 module.exports = {
     context: path.resolve(__dirname, __dirname + "/src/main/js/"),
     entry: {
-        todo: "./client/index.js"
+        todo: "./server/index.js"
     },
     output: {
         path: __dirname + "/public/dist/",
-        filename: "[name]-client.js"
+        filename: "[name]-server.js"
     },
     module: {
         loaders: [

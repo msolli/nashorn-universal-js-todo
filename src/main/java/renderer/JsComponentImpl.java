@@ -1,6 +1,6 @@
-package service;
+package renderer;
 
-import static service.Util.capitalize;
+import static renderer.Util.capitalize;
 
 public enum JsComponentImpl implements JsComponent {
 

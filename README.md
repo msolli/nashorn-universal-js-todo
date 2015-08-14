@@ -5,5 +5,12 @@
 * doRender() i NashornRenderer må endres til å bruke dette interfacet
 
 
+TODO
 
-controlleren får en service autowired. denne servicen
+* Reload av Java/template-kode fra IDEA
+* Mål tid brukt på hvert metodekall, og initiell lasting av JS
+* Hvor initieres Nashorn to ganger ved oppstart?
+* Legg til @Value("${isJsReloadingEnabled}") boolean isReloadingEnabled i JsComponents
+* Sett input og output på npm_run_build-task
+* Lag TodoMvc med routing og redux
+* Timeboxing av metodekall

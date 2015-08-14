@@ -1,4 +1,4 @@
-package service;
+package renderer;
 
 import java.util.Map;
 

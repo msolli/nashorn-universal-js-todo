@@ -1,4 +1,4 @@
-package service;
+package renderer;
 
 public interface JsComponent {
     String getId();
