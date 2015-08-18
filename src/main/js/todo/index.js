@@ -7,19 +7,8 @@ const Yo = React.createClass({
 });
 
 function renderTodoApp(data, location) {
-    console.log("renderTodoApp:", ...arguments);
     // TODO location / router stuff
-    let data_ = {};
-    for (let k in data) {
-        console.log(k, data[k]);
-        if (data[k] instanceof Java.type("java.lang.Iterable")) {
-            data_[k] = Java.from(data[k])
-        } else {
-            data_[k] = data[k]
-        }
-    }
-
-    return React.renderToString(<Yo {...data_}/>)
+    return React.renderToString(<Yo {...JSON.parse(data)}/>)
 }
 
 function initTodoApp(data, element) {

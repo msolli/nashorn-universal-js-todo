@@ -2,18 +2,17 @@ var path = require("path");
 var webpack = require("webpack");
 
 var plugins = (function (plugins) {
-    const PRODUCTION = "production" === process.env.WEBPACK_ENV;
-
     plugins.push(new webpack.DefinePlugin({
-        "process.env.NODE_ENV": JSON.stringify(process.env.WEBPACK_ENV || "development")
+        "process.env.NODE_ENV": "\"production\""
     }));
 
-    if (PRODUCTION) {
-        plugins.push(new webpack.optimize.UglifyJsPlugin({
-            mangle: false,
-            beautify: true
-        }));
-    }
+    plugins.push(new webpack.optimize.UglifyJsPlugin({
+        mangle: false,
+        beautify: true,
+        compress: {
+            warnings: false
+        }
+    }));
 
     return plugins;
 })([]);

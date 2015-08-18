@@ -2,77 +2,78 @@ package renderer;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
-import javax.annotation.PreDestroy;
-import javax.script.Bindings;
-import javax.script.ScriptContext;
 import javax.script.ScriptException;
-import javax.script.SimpleScriptContext;
 
 import jdk.nashorn.api.scripting.NashornScriptEngine;
 import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
 import jdk.nashorn.api.scripting.URLReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 
 import static java.lang.ThreadLocal.withInitial;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static javax.script.ScriptContext.ENGINE_SCOPE;
-import static renderer.JsComponentImpl.GLOBAL_LOCATION_NAME;
-import static renderer.JsComponentImpl.GLOBAL_PROPS_NAME;
 
-@Service
-public class NashornRenderer<T> implements JsRenderer<T> {
+public class NashornRenderer<T, S> implements JsRenderer<T, S> {
 
     private static final Logger LOG = LoggerFactory.getLogger(NashornRenderer.class);
-    //private static final MetricNameStatsdClient statsd = StatsdClient.from(NashornRenderer.class);
     private static final String[] NASHORN_OPTS = {"--persistent-code-cache", "--optimistic-types"};
-//    private static final String[] JS_FILES = {
-//            "/jsdist/nashorn/oppdrag.js"
-//    };
 
-    private final ExecutorService pool = Executors.newFixedThreadPool(6);
-    private final AtomicReference<RenderFn> renderFn = new AtomicReference<>((a, b) -> () -> "");
-    private final AtomicReference<T> proxyObject = new AtomicReference<>();
+    private final ExecutorService pool;
     private final AtomicLong lastModified = new AtomicLong();
     private final Class<T> clazz;
     private final List<File> jsFiles;
+    private final S defaultReturnValue;
     private final boolean isReloadingEnabled;
-    private final boolean isAsyncInit;
+    private final long timeout;
+    private final TimeUnit timeoutUnit;
     private final Optional<String> jsNamespace;
+    private final AtomicReference<T> proxyObject;
 
-    public static class Builder<T> {
+    public static class Builder<T, S> {
         // Required parameters
         private final Class<T> clazz;
         private final List<File> jsFiles;
+        private final S defaultReturnValue;
 
         // Optional parameters
         private Optional<String> jsNamespace = Optional.ofNullable(null);
         private boolean isReloadingEnabled = false;
-        private boolean isAsyncInit = true;
+        private long timeout = 0;
+        private TimeUnit timeoutUnit = TimeUnit.MILLISECONDS;
+        private int poolSize = Runtime.getRuntime().availableProcessors() + 1;
 
         // TODO More? logger/debug, stats, nashorn opts, thread pool size...
 
-        public Builder(Class<T> clazz, List<File> jsFiles) {
+        public Builder(Class<T> clazz, List<File> jsFiles, S defaultReturnValue) {
             this.clazz = clazz;
             this.jsFiles = jsFiles;
+            this.defaultReturnValue = defaultReturnValue;
         }
+
 
         public Builder enableReloading() {
             this.isReloadingEnabled = true;
             return this;
         }
 
-        public Builder disableAsyncInitialization() {
-            this.isAsyncInit = false;
+        public Builder timeout(long timeout) {
+            this.timeout = timeout;
+            return this;
+        }
+
+        public Builder timeout(long timeout, TimeUnit timeoutUnit) {
+            this.timeout = timeout;
+            this.timeoutUnit = timeoutUnit;
             return this;
         }
 
@@ -81,53 +82,46 @@ public class NashornRenderer<T> implements JsRenderer<T> {
             return this;
         }
 
-        public NashornRenderer<T> build() {
-            return new NashornRenderer<>(this);
+        public Builder poolSize(int poolSize) {
+            this.poolSize = poolSize;
+            return this;
+        }
+
+        public T build() {
+            return new NashornRenderer<>(this).proxyObject.get();
         }
     }
 
-    private NashornRenderer(Builder<T> builder) {
+    private NashornRenderer(Builder<T, S> builder) {
         clazz = builder.clazz;
         jsFiles = builder.jsFiles;
+        defaultReturnValue = builder.defaultReturnValue;
         isReloadingEnabled = builder.isReloadingEnabled;
-        isAsyncInit = builder.isAsyncInit;
+        timeout = builder.timeout;
+        timeoutUnit = builder.timeoutUnit;
         jsNamespace = builder.jsNamespace;
-        init();
+        pool = Executors.newFixedThreadPool(builder.poolSize);
+        proxyObject = new AtomicReference<>(noopProxy());
+        loadJs();
     }
 
-//    @Autowired
-//    public NashornRenderer(ServletContext context,
-//                           @Value("${isJsReloadingEnabled}") boolean jsReloadingEnabled) throws IOException {
-//        this.jsReloadingEnabled = jsReloadingEnabled;
-//        this.jsFiles = stream(JS_FILES)
-//                .map(context::getRealPath)
-//                .map(File::new)
-//                .collect(toList());
-//        pool.execute(this::loadJs);
-//    }
-
-    private void init() {
-
-        if (isAsyncInit) {
-            pool.execute(this::loadJs);
-        } else {
-            loadJs();
-        }
+    private T noopProxy() {
+        return (T) Proxy.newProxyInstance(clazz.getClassLoader(), new Class[]{clazz}, new InvocationHandler() {
+            @Override
+            public Supplier<S> invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                LOG.info("{}: Nashorn not ready yet", method.getName());
+                return () -> defaultReturnValue;
+            }
+        });
     }
 
     private void loadJs() {
         try {
             do {
-                final ThreadLocal<NashornScriptEngine> engine = withInitial(() -> initEngine());
-
                 try {
-                    T yo = engine.get().getInterface(clazz);
-                    LOG.info("yo {}", yo.toString());
-                    proxyObject.set(jsNamespace
-                            .map(ns -> engine.get().getInterface(engine.get().get(ns), clazz))
-                            .orElseGet(() -> engine.get().getInterface(clazz)));
-
-//                        renderFn.set(getRenderFn(engine, localContext));
+                    final ThreadLocal<T> jsInterface = withInitial(this::getInterface);
+                    final InvocationHandler handler = new JsInvocationHandler(jsInterface);
+                    proxyObject.set((T) Proxy.newProxyInstance(clazz.getClassLoader(), new Class[]{clazz}, handler));
                 } catch (RuntimeException e) {
                     LOG.error("Could not load JS", e);
                 }
@@ -140,23 +134,19 @@ public class NashornRenderer<T> implements JsRenderer<T> {
         }
     }
 
-    private ScriptContext initScriptContext(NashornScriptEngine engine) {
-        final String threadName = Thread.currentThread().getName();
-        LOG.info("Initializing Nashorn ({})", threadName);
-        final Bindings global = engine.createBindings();
-        final ScriptContext context = new SimpleScriptContext();
-        context.setBindings(global, ENGINE_SCOPE);
-        jsFiles.forEach(f -> load(engine, context, f));
-        LOG.info("Nashorn initialized ({})", threadName);
-        return context;
+    private T getInterface() {
+        final NashornScriptEngine engine = initEngine();
+        return jsNamespace
+                .map(ns -> engine.getInterface(engine.get(ns), clazz))
+                .orElseGet(() -> engine.getInterface(clazz));
     }
 
     private NashornScriptEngine initEngine() {
-        final String threadName = Thread.currentThread().getName();
-        LOG.info("Initializing Nashorn ({})", threadName);
+        final long startTime = System.nanoTime();
+        LOG.info("Initializing Nashorn");
         final NashornScriptEngine engine = getEngine();
         jsFiles.forEach(f -> load(engine, f));
-        LOG.info("Nashorn initialized ({})", threadName);
+        logTiming("Nashorn initialized", System.nanoTime() - startTime);
         return engine;
     }
 
@@ -179,15 +169,6 @@ public class NashornRenderer<T> implements JsRenderer<T> {
         return (newLastModified > lastModified.getAndSet(newLastModified));
     }
 
-    private static void load(NashornScriptEngine engine, ScriptContext context, File f) {
-        try {
-            LOG.debug("Loading JS file {}", f.getName());
-            engine.eval(new URLReader(f.toURI().toURL()), context);
-        } catch (IOException | ScriptException e) {
-            throw new RuntimeException("Error loading JS file " + f.getName(), e);
-        }
-    }
-
     private static void load(NashornScriptEngine engine, File f) {
         try {
             LOG.debug("Loading JS file {}", f.getName());
@@ -197,76 +178,64 @@ public class NashornRenderer<T> implements JsRenderer<T> {
         }
     }
 
-    @Override
-    public T getProxyObject() {
-        return proxyObject.get();
-    }
-
-    private RenderFn getRenderFn(NashornScriptEngine engine, ThreadLocal<ScriptContext> context) {
-        return (component, state) -> {
-            try {
-                final String threadName = Thread.currentThread().getName();
-                LOG.debug("Submitting JS for rendering ({})", threadName);
-                final Future<String> future = pool.submit(() -> doRender(component, state, engine, context.get()));
-                return () -> getRendered(future, component);
-            } catch (RejectedExecutionException e) {
-                LOG.warn("Could not submit JS for rendering: {}", e.getMessage());
-            }
-            return () -> "";
-        };
-    }
-
-    private static String doRender(JsComponent component, JsComponentState state, NashornScriptEngine engine,
-                                   ScriptContext context)
-            throws ScriptException {
-        long startTime = System.nanoTime();
-        try {
-            LOG.debug("putting props");
-            context.getBindings(ENGINE_SCOPE).put(GLOBAL_PROPS_NAME, Util.toJson(state.getData()));
-            LOG.debug("putting location");
-            context.getBindings(ENGINE_SCOPE).put(GLOBAL_LOCATION_NAME, state.getLocation());
-            LOG.debug("doing eval");
-            Object html = engine.eval(component.getRenderStatement(), context);
-            LOG.debug("eval finished");
-            logTiming(component, System.nanoTime() - startTime, "rendered");
-            return String.valueOf(html);
-        } catch (ScriptException e) {
-            logTiming(component, System.nanoTime() - startTime, "failed");
-            LOG.error("Could not render JS", e.getCause());
-        }
-        return "";
-    }
-
-    private static void logTiming(JsComponent component, long elapsedTime, String status) {
-        //statsd.time(getMetricName(component.getId(), status), elapsedTime, NANOSECONDS);
-        //LOG.debug("{}: {} ms", getMetricName(component.getId(), status).getAspect(), NANOSECONDS.toMillis(elapsedTime));
-        LOG.debug("{} {}: {} ms", component.getId(), status, NANOSECONDS.toMillis(elapsedTime));
-    }
-
-//    private static MetricName getMetricName(String id, String status) {
-//        return MetricName.of(String.join(".", "oppdrag-web", "nashorn", id, status));
+//    @PreDestroy
+//    public void shutdownExecutor() {
+//        pool.shutdownNow();
 //    }
 
-    private static String getRendered(Future<String> future, JsComponent component) {
-        try {
-            return future.get(50, MILLISECONDS);
-        } catch (InterruptedException e) {
-            LOG.error("Rendering interrupted", e);
-            Thread.currentThread().interrupt();
-        } catch (ExecutionException e) {
-            LOG.error("Could not render JS", e);
-        } catch (TimeoutException e) {
-            //statsd.increment(getMetricName(component.getId(), "timedout"));
-            //LOG.warn(getMetricName(component.getId(), "timedout").getAspect());
-            LOG.warn("{} timed out", component.getId());
+    private class JsInvocationHandler implements InvocationHandler {
+        private final ThreadLocal<T> jsInterface;
+
+        public JsInvocationHandler(ThreadLocal<T> jsInterface) {
+            this.jsInterface = jsInterface;
         }
-        return "";
+
+        @Override
+        public Supplier<S> invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            final String methodName = method.getName();
+            LOG.info("Submitting {} for rendering", methodName);
+
+            final Future<S> future;
+            try {
+                future = pool.submit(() -> {
+                    final long startTime = System.nanoTime();
+                    try {
+                        S result = (S) method.invoke(jsInterface.get(), args);
+                        logTiming(methodName + " finished", System.nanoTime() - startTime);
+                        return result;
+                    } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+                        logTiming(methodName + " failed", System.nanoTime() - startTime);
+                        LOG.error("Could not render JS", e.getCause());
+                    }
+                    return defaultReturnValue;
+                });
+            } catch (RejectedExecutionException e) {
+                LOG.warn("Could not submit JS for rendering: {}", e.getMessage());
+                return () -> defaultReturnValue;
+            }
+
+            try {
+                if (timeout > 0) {
+                    final S result = future.get(timeout, timeoutUnit);
+                    return () -> result;
+                } else {
+                    final S result = future.get();
+                    LOG.debug("YOYO: {}", result);
+                    return () -> result;
+                }
+            } catch (InterruptedException e) {
+                LOG.warn("{} timed out", method);
+            } catch (ExecutionException e) {
+                LOG.error("Rendering interrupted", e);
+                Thread.currentThread().interrupt();
+            } catch (TimeoutException e) {
+                LOG.error("Could not render JS", e);
+            }
+            return () -> defaultReturnValue;
+        }
     }
 
-    @PreDestroy
-    public void shutdownExecutor() {
-        pool.shutdownNow();
+    private static void logTiming(String msg, long elapsedTime) {
+        LOG.info("{}: {} ms", msg, NANOSECONDS.toMillis(elapsedTime));
     }
-
-    private interface RenderFn extends BiFunction<JsComponent, JsComponentState, Supplier<String>> {}
 }

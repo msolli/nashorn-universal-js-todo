@@ -10,6 +10,8 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 
+import static renderer.Util.toJson;
+
 @Controller
 public class TodoController {
 
@@ -24,10 +26,10 @@ public class TodoController {
     String index(Model model) {
         // get data from data layer
         final Map<String, Object> data = new HashMap<>();
-        data.put("yo", "man");
+        data.put("yo", "mama");
         // get location from request object
         final String location = "";
-        model.addAttribute("todo", js.renderTodoApp(data, location));
+        model.addAttribute("todo", js.renderTodoApp(toJson(data), location));
         return "index";
     }
 
