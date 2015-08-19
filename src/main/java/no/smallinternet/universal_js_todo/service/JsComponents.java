@@ -17,7 +17,7 @@ import static java.util.Arrays.stream;
 import static java.util.stream.Collectors.toList;
 
 @Service
-public class JsComponents implements ITodoComponents<JsModel> {
+public class JsComponents {
 
     public interface TodoComponents extends ITodoComponents<Supplier<String>> {}
 
@@ -52,7 +52,6 @@ public class JsComponents implements ITodoComponents<JsModel> {
                 .collect(toList());
     }
 
-    @Override
     public JsModel renderTodoApp(String data, String path, String queryString) {
         return new JsModel("todoApp", jsNamespace, data, jsRenderer.renderTodoApp(data, path, queryString));
     }
