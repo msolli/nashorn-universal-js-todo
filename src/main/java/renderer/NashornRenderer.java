@@ -3,7 +3,6 @@ package renderer;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.List;
@@ -46,7 +45,7 @@ public class NashornRenderer<T, S> implements JsRenderer<T, S> {
         private final S defaultReturnValue;
 
         // Optional parameters
-        private Optional<String> jsNamespace = Optional.ofNullable(null);
+        private Optional<String> jsNamespace = Optional.empty();
         private boolean isReloadingEnabled = false;
         private long timeout = 0;
         private TimeUnit timeoutUnit = TimeUnit.MILLISECONDS;
@@ -223,7 +222,6 @@ public class NashornRenderer<T, S> implements JsRenderer<T, S> {
                     return () -> result;
                 } else {
                     final S result = future.get();
-                    LOG.debug("YOYO: {}", result);
                     return () -> result;
                 }
             } catch (InterruptedException e) {
