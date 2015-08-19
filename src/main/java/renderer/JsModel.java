@@ -15,13 +15,13 @@ import static renderer.Util.capitalize;
 public final class JsModel {
     private final String id;
     private final String ns;
-    private final JsComponentState state;
+    private final String data;
     private final Supplier<String> rendered;
 
-    private JsModel(String id, String ns, JsComponentState state, Supplier<String> rendered) {
+    public JsModel(String id, String ns, String data, Supplier<String> rendered) {
         this.id = id;
         this.ns = ns;
-        this.state = state;
+        this.data = data;
         this.rendered = rendered;
     }
 
@@ -40,15 +40,11 @@ public final class JsModel {
         return ns + "." + getInitFn() + "(" + getInitFnArgs() + ");";
     }
 
-    public static JsModel createModelWithState(String id, String ns, String data, String location, Supplier<String> rendered) {
-        return new JsModel(id, ns, new JsComponentState(data, location), rendered);
-    }
-
     public String getInitFn() {
         return "init" + capitalize(id);
     }
 
     public String getInitFnArgs() {
-        return state.getData() + ", " + "document.getElementById(\"" + id + "\")";
+        return data + ", " + "document.getElementById(\"" + id + "\")";
     }
 }

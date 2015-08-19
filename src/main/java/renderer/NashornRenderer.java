@@ -203,10 +203,13 @@ public class NashornRenderer<T, S> implements JsRenderer<T, S> {
                         S result = (S) method.invoke(jsInterface.get(), args);
                         logTiming(methodName + " finished", System.nanoTime() - startTime);
                         return result;
-                    } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-                        logTiming(methodName + " failed", System.nanoTime() - startTime);
-                        LOG.error("Could not render JS", e.getCause());
+                    } catch (NullPointerException e) {
+                        LOG.error("Could not match interface with JS functions");
+                    } catch (Exception e) {
+                        LOG.error("Could not render JS - TODO catch only relevant exceptions here", e.getMessage());
+                        throw e;
                     }
+                    logTiming(methodName + " failed", System.nanoTime() - startTime);
                     return defaultReturnValue;
                 });
             } catch (RejectedExecutionException e) {
@@ -224,12 +227,12 @@ public class NashornRenderer<T, S> implements JsRenderer<T, S> {
                     return () -> result;
                 }
             } catch (InterruptedException e) {
-                LOG.warn("{} timed out", method);
-            } catch (ExecutionException e) {
                 LOG.error("Rendering interrupted", e);
                 Thread.currentThread().interrupt();
-            } catch (TimeoutException e) {
+            } catch (ExecutionException e) {
                 LOG.error("Could not render JS", e);
+            } catch (TimeoutException e) {
+                LOG.warn("{} timed out", method);
             }
             return () -> defaultReturnValue;
         }

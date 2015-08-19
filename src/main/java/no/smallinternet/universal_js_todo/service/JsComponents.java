@@ -53,8 +53,7 @@ public class JsComponents implements ITodoComponents<JsModel> {
     }
 
     @Override
-    public JsModel renderTodoApp(String data, String location) {
-        return JsModel.createModelWithState("todoApp", jsNamespace, data, location,
-                jsRenderer.renderTodoApp(data, location));
+    public JsModel renderTodoApp(String data, String path, String queryString) {
+        return new JsModel("todoApp", jsNamespace, data, jsRenderer.renderTodoApp(data, path, queryString));
     }
 }

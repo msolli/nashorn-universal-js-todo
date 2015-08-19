@@ -3,6 +3,8 @@ package no.smallinternet.universal_js_todo.web;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.servlet.http.HttpServletRequest;
+
 import no.smallinternet.universal_js_todo.service.JsComponents;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -23,13 +25,15 @@ public class TodoController {
     }
 
     @RequestMapping(value = "/", method = RequestMethod.GET)
-    String index(Model model) {
+    String index(Model model, HttpServletRequest request) {
         // get data from data layer
         final Map<String, Object> data = new HashMap<>();
         data.put("yo", "mama");
         // get location from request object
         final String location = "";
-        model.addAttribute("todo", js.renderTodoApp(toJson(data), location));
+        final String path = request.getRequestURI();
+        final String queryString = request.getQueryString();
+        model.addAttribute("todo", js.renderTodoApp(toJson(data), path, queryString));
         return "index";
     }
 

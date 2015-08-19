@@ -4,7 +4,7 @@ import "core-js/es7";
 import "core-js/js";
 import "./nashorn-console-polyfill";
 
-import { renderTodoApp } from "../todo/index.js";
+import renderTodoApp from "../todo/todo-server.js";
 
 global.TODO = {
     renderTodoApp
