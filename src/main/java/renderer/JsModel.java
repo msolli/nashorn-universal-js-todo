@@ -2,8 +2,6 @@ package renderer;
 
 import java.util.function.Supplier;
 
-import static renderer.Util.capitalize;
-
 /*
 * View model for rendered JS component. Handles output of:
 *   - rendered JS
@@ -46,5 +44,16 @@ public final class JsModel {
 
     public String getInitFnArgs() {
         return data + ", " + "document.getElementById(\"" + id + "\")";
+    }
+
+    private static String capitalize(String str) {
+        int strLen;
+        if (str == null || (strLen = str.length()) == 0) {
+            return str;
+        }
+        return new StringBuilder(strLen)
+                .append(Character.toTitleCase(str.charAt(0)))
+                .append(str.substring(1))
+                .toString();
     }
 }
