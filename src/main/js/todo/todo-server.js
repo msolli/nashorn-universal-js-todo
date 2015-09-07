@@ -1,11 +1,12 @@
 import React from "react";
-
-const Yo = React.createClass({
-    render() {
-        return <div>Yo {this.props.yo}</div>;
-    }
-});
+import TodoApp from "./app";
+import TodoModel from "./model";
 
 export default function (data) {
-    return React.renderToString(<Yo {...JSON.parse(data)}/>)
+    const data_ = JSON.parse(data);
+    const todos = data_["todos"] || [];
+    const model = new TodoModel(todos);
+    console.log(todos);
+
+    return React.renderToString(<TodoApp model={model}/>)
 };

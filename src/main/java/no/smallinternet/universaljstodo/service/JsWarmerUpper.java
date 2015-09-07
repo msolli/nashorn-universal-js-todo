@@ -1,10 +1,16 @@
 package no.smallinternet.universaljstodo.service;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import renderer.NashornExecutor;
@@ -84,17 +90,29 @@ public final class JsWarmerUpper {
 
     private class TodoAppWarmer implements Runnable {
         private final NashornExecutor<JsComponents> executor;
-        private final String data = "{\"jobId\":674947,\"companyId\":14293592,\"profilePhoto\":\"foo.png\",\"canUploadFiles\":true," +
-                "\"showInterestSource\":\"MY_COMPANY\",\"reviews\":[],\"templates\":[]}";
+        private final String json;
 
         public TodoAppWarmer(NashornExecutor<JsComponents> executor) {
             this.executor = executor;
+            final Map<String, Object> data = new HashMap<>();
+            data.put("todos", new ArrayList<String>());
+            this.json = toJson(data);
         }
 
         @Override
         public void run() {
-            executor.render(withTimer(js -> js.renderTodoApp(data), this), "");
+            final Supplier<String> s = executor.render(withTimer(js -> js.renderTodoApp(json), this), "");
+            LOG.debug("Render result: {}", s.get());
         }
 
+    }
+
+    private static String toJson(Object o) {
+        final ObjectMapper objectMapper = new ObjectMapper();
+        try {
+            return objectMapper.writeValueAsString(o);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 }

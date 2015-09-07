@@ -35,5 +35,10 @@ module.exports = {
             }
         ]
     },
+    resolve: {
+        alias: {
+            "director": "director/lib/director/router.js"
+        }
+    },
     plugins: plugins
 };

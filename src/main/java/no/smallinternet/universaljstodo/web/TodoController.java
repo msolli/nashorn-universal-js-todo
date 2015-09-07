@@ -1,6 +1,7 @@
 package no.smallinternet.universaljstodo.web;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,7 +27,7 @@ public class TodoController {
     String index(Model model) {
         // get data from data layer
         final Map<String, Object> data = new HashMap<>();
-        data.put("yo", "mama");
+        data.put("todos", new ArrayList<String>());
         model.addAttribute("todo", js.renderTodoApp(toJson(data)));
         return "index";
     }
