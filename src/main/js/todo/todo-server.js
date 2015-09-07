@@ -1,6 +1,4 @@
 import React from "react";
-//import { Router, Route, Link } from "react-router";
-//import routes from "./routes";
 
 const Yo = React.createClass({
     render() {
@@ -8,6 +6,6 @@ const Yo = React.createClass({
     }
 });
 
-export default function (data, path, queryString) {
+export default function (data) {
     return React.renderToString(<Yo {...JSON.parse(data)}/>)
 };

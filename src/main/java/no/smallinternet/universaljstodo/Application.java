@@ -1,4 +1,4 @@
-package no.smallinternet.universal_js_todo;
+package no.smallinternet.universaljstodo;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

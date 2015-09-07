@@ -5,7 +5,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.List;
+import java.util.Collection;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -15,9 +15,9 @@ public final class JsReloader<T> implements Supplier<T> {
     private static final Logger LOG = LoggerFactory.getLogger(JsReloader.class);
     private final Class<T> clazz;
     private final Supplier<T> supplier;
-    private final List<File> jsFiles;
+    private final Collection<File> jsFiles;
 
-    public JsReloader(Class<T> clazz, Supplier<T> supplier, List<File> jsFiles) {
+    public JsReloader(Class<T> clazz, Supplier<T> supplier, Collection<File> jsFiles) {
         this.clazz = clazz;
         this.supplier = supplier;
         this.jsFiles = jsFiles;
@@ -33,22 +33,29 @@ public final class JsReloader<T> implements Supplier<T> {
 
     private static class ReloaderInvocationHandler implements InvocationHandler {
         private final Supplier<?> supplier;
-        private final List<File> jsFiles;
+        private final Collection<File> jsFiles;
         private long lastAttempt = 0;
         private Object current;
 
-        public ReloaderInvocationHandler(Supplier<?> supplier, List<File> jsFiles) {
+        public ReloaderInvocationHandler(Supplier<?> supplier, Collection<File> jsFiles) {
             this.supplier = supplier;
             this.jsFiles = jsFiles;
         }
 
         @Override
-        public Object invoke(Object proxy, Method method, Object[] args) throws InvocationTargetException, IllegalAccessException {
+        public Object invoke(Object proxy, Method method, Object[] args) throws IllegalAccessException, InvocationTargetException {
             if (current == null || hasFilesChanged()) {
                 lastAttempt = System.currentTimeMillis();
                 current = getCurrent();
             }
-            return method.invoke(current, args);
+            try {
+                return method.invoke(current, args);
+            } catch (InvocationTargetException e) {
+                if (e.getCause() instanceof RuntimeException) {
+                    throw (RuntimeException) e.getCause();
+                }
+                throw e;
+            }
         }
 
         private Object getCurrent() {

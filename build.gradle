@@ -36,6 +36,7 @@ dependencies {
     compile("org.springframework.boot:spring-boot-starter-thymeleaf")
     compile("org.springframework.boot:spring-boot-starter-test")
     compile("org.springframework.boot:spring-boot-starter-data-jpa")
+    compile("com.google.guava:guava:18.0")
     compile("com.h2database:h2")
     compile("com.fasterxml.jackson.core:jackson-core")
     compile("com.fasterxml.jackson.core:jackson-databind")
@@ -44,3 +45,8 @@ dependencies {
 }
 
 processResources.dependsOn npm_run_build
+npm_run_build {
+    inputs.dir(fileTree(dir: "src/main/js"))
+    inputs.files("webpack.client-config.js", "webpack.client-config.js")
+    outputs.dir(new File(projectDir, "public/dist"))
+}

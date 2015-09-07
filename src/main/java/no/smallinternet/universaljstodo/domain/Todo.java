@@ -1,4 +1,4 @@
-package no.smallinternet.universal_js_todo.domain;
+package no.smallinternet.universaljstodo.domain;
 
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;

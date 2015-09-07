@@ -1,4 +1,4 @@
-package no.smallinternet.universal_js_todo.api;
+package no.smallinternet.universaljstodo.api;
 
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.web.bind.annotation.RequestMapping;
