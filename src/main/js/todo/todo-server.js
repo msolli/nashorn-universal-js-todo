@@ -6,7 +6,6 @@ export default function (data) {
     const data_ = JSON.parse(data);
     const todos = data_["todos"] || [];
     const model = new TodoModel(todos);
-    console.log(todos);
 
     return React.renderToString(<TodoApp model={model}/>)
 };

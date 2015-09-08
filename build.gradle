@@ -23,11 +23,10 @@ sourceCompatibility = 1.8
 targetCompatibility = 1.8
 
 repositories {
+    mavenLocal()
     mavenCentral()
-}
-
-repositories {
     jcenter()
+    maven { url "https://clojars.org/repo" }
 }
 
 dependencies {
@@ -37,9 +36,13 @@ dependencies {
     compile("org.springframework.boot:spring-boot-starter-test")
     compile("org.springframework.boot:spring-boot-starter-data-jpa")
     compile("com.google.guava:guava:18.0")
+    compile("net.matlux:jvm-breakglass:0.0.8")
     compile("com.h2database:h2")
     compile("com.fasterxml.jackson.core:jackson-core")
     compile("com.fasterxml.jackson.core:jackson-databind")
+    compile("alembic:alembic:0.3.2")
+    runtime("incanter:incanter-core:1.5.6")
+    runtime("incanter:incanter-charts:1.5.6")
     testCompile("org.springframework.boot:spring-boot-starter-test")
     testCompile("junit:junit")
 }

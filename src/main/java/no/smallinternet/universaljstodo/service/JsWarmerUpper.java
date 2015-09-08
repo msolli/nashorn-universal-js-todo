@@ -3,12 +3,12 @@ package no.smallinternet.universaljstodo.service;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -18,15 +18,18 @@ import renderer.NashornExecutor;
 public final class JsWarmerUpper {
     private static final Logger LOG = LoggerFactory.getLogger(JsWarmerUpper.class);
     private final ExecutorService pool = Executors.newSingleThreadExecutor();
-    private final ThreadLocal<Long> runs = ThreadLocal.withInitial(() -> 0l);
+    private final ThreadLocal<Integer> runs = ThreadLocal.withInitial(() -> 0);
     private final NashornExecutor<JsComponents> executor;
     private final long targetDuration;
     private final int maxRuns;
+    private List<WarmupListener> listeners;
+    private ArrayList<Long> stats = new ArrayList<>();
 
     private JsWarmerUpper(Builder builder) {
         executor = builder.executor;
         targetDuration = builder.targetDuration;
         maxRuns = builder.maxRuns;
+        listeners = builder.listeners;
     }
 
     private void run() {
@@ -44,6 +47,7 @@ public final class JsWarmerUpper {
         // Optional parameters
         long targetDuration = 10; // milliseconds
         int maxRuns = 1000;
+        List<WarmupListener> listeners = new ArrayList<>();
 
         public Builder(NashornExecutor<JsComponents> executor) {
             this.executor = executor;
@@ -59,6 +63,11 @@ public final class JsWarmerUpper {
             return this;
         }
 
+        public Builder onComplete(WarmupListener listener) {
+            this.listeners.add(listener);
+            return this;
+        }
+
         public void run() {
             new JsWarmerUpper(this).run();
         }
@@ -71,14 +80,17 @@ public final class JsWarmerUpper {
             try {
                 return fn.apply(t);
             } finally {
-                runs.set(runs.get() + 1l);
-                LOG.debug("Run {} on {} for {}", runs.get(), Thread.currentThread().getName(), name);
                 long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+                stats.add(elapsed);
+                LOG.debug("Run {} on {} for {}", runs.get(), Thread.currentThread().getName(), name);
+                runs.set(runs.get() + 1);
                 if (elapsed <= targetDuration) {
                     LOG.debug("Warmup of {} complete", name);
+                    notifyComplete();
                     pool.shutdown();
                 } else if (runs.get() == maxRuns) {
                     LOG.debug("Warmup of {} failed, could not reach target duration after {} runs", name, maxRuns);
+                    notifyComplete();
                     pool.shutdown();
                 } else {
                     LOG.debug("Keep warming up {} ({} ms)", name, elapsed);
@@ -86,6 +98,15 @@ public final class JsWarmerUpper {
                 }
             }
         };
+    }
+
+    private void notifyComplete() {
+        final long[] statsArray = stats.stream()
+                .mapToLong(s -> s)
+                .toArray();
+        for (WarmupListener listener : listeners) {
+            listener.warmupComplete(new WarmupResult(statsArray));
+        }
     }
 
     private class TodoAppWarmer implements Runnable {
@@ -101,8 +122,7 @@ public final class JsWarmerUpper {
 
         @Override
         public void run() {
-            final Supplier<String> s = executor.render(withTimer(js -> js.renderTodoApp(json), this), "");
-            LOG.debug("Render result: {}", s.get());
+            executor.render(withTimer(js -> js.renderTodoApp(json), this), "");
         }
 
     }

@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.PreDestroy;
@@ -29,13 +30,14 @@ import static java.util.stream.Collectors.toList;
 import static renderer.NashornRenderer.builder;
 
 @Service
-public class JsRenderer {
+public class JsRenderer implements WarmupListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(JsRenderer.class);
     private static final String[] JS_FILES = {"/dist/todo-server.js"};
     private static final String JS_NAMESPACE = "TODO";
     private final ExecutorService pool;
     private final NashornExecutor<JsComponents> executor;
+    private final AtomicReference<WarmupResult> lastWarmupResult = new AtomicReference<>();
 
     @Autowired
     public JsRenderer(ServletContext context) {
@@ -47,7 +49,7 @@ public class JsRenderer {
                 (a, b) -> LOG.warn("JS execution rejected"));
 
         executor = new NashornExecutor<>(setupSupplier(getJsFiles(context::getRealPath), true), pool);
-        JsWarmerUpper.create(executor).targetDuration(0, MILLISECONDS).maxRuns(10000).run();
+        JsWarmerUpper.create(executor).targetDuration(0, MILLISECONDS).maxRuns(10000).onComplete(this).run();
     }
 
     private static Supplier<JsComponents> setupSupplier(Collection<File> jsFiles, boolean reload) {
@@ -83,5 +85,14 @@ public class JsRenderer {
     @PreDestroy
     public void shutdownExecutor() {
         pool.shutdownNow();
+    }
+
+    @Override
+    public void warmupComplete(WarmupResult result) {
+        lastWarmupResult.set(result);
+    }
+
+    public WarmupResult getLastWarmupResult() {
+        return lastWarmupResult.get();
     }
 }
