@@ -13,6 +13,7 @@ import javax.annotation.PreDestroy;
 import javax.servlet.ServletContext;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import no.smallinternet.universaljstodo.domain.TodoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +41,7 @@ public class JsRenderer implements WarmupListener {
     private final AtomicReference<WarmupResult> lastWarmupResult = new AtomicReference<>();
 
     @Autowired
-    public JsRenderer(ServletContext context) {
+    public JsRenderer(ServletContext context, TodoRepository repository) {
         final int maximumPoolSize = min(getRuntime().availableProcessors(), 4);
         LOG.info("Initializing JsRenderer service - maxRenderThreads: {}", maximumPoolSize);
 
@@ -49,7 +50,7 @@ public class JsRenderer implements WarmupListener {
                 (a, b) -> LOG.warn("JS execution rejected"));
 
         executor = new NashornExecutor<>(setupSupplier(getJsFiles(context::getRealPath), true), pool);
-        JsWarmerUpper.create(executor).targetDuration(0, MILLISECONDS).maxRuns(10000).onComplete(this).run();
+        JsWarmerUpper.create(executor, repository).targetDuration(0, MILLISECONDS).maxRuns(10000).onComplete(this).run();
     }
 
     private static Supplier<JsComponents> setupSupplier(Collection<File> jsFiles, boolean reload) {
@@ -68,7 +69,7 @@ public class JsRenderer implements WarmupListener {
 
     public JsModel renderTodoApp(String data) {
         return new JsModel("todoApp", JS_NAMESPACE, data,
-                executor.render(withTiming(todo -> todo.renderTodoApp(data), "renderTodoApp"), ""));
+                executor.render(withTiming(todo -> todo.renderTodoApp(data), "renderTodoApp"), "", 10));
     }
 
     private <T, S> Function<T, S> withTiming(Function<T, S> fn, String name) {

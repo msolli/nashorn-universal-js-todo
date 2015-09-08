@@ -1,4 +1,5 @@
 import React from "react";
+import cx from "classnames";
 import Utils from "./utils";
 import { ALL_TODOS, ACTIVE_TODOS, COMPLETED_TODOS } from "./constants";
 
@@ -18,7 +19,6 @@ export default React.createClass({
         }
 
         // React idiom for shortcutting to `classSet` since it'll be used often
-        var cx = React.addons.classSet;
         var nowShowing = this.props.nowShowing;
         return (
             <footer className="footer">

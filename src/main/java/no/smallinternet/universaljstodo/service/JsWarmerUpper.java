@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import no.smallinternet.universaljstodo.domain.TodoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import renderer.NashornExecutor;
@@ -20,6 +21,7 @@ public final class JsWarmerUpper {
     private final ExecutorService pool = Executors.newSingleThreadExecutor();
     private final ThreadLocal<Integer> runs = ThreadLocal.withInitial(() -> 0);
     private final NashornExecutor<JsComponents> executor;
+    private final TodoRepository repository;
     private final long targetDuration;
     private final int maxRuns;
     private List<WarmupListener> listeners;
@@ -27,30 +29,33 @@ public final class JsWarmerUpper {
 
     private JsWarmerUpper(Builder builder) {
         executor = builder.executor;
+        repository = builder.repository;
         targetDuration = builder.targetDuration;
         maxRuns = builder.maxRuns;
         listeners = builder.listeners;
     }
 
     private void run() {
-        pool.submit(new TodoAppWarmer(executor));
+        pool.submit(new TodoAppWarmer(executor, repository));
     }
 
-    public static Builder create(NashornExecutor<JsComponents> executor) {
-        return new JsWarmerUpper.Builder(executor);
+    public static Builder create(NashornExecutor<JsComponents> executor, TodoRepository repository) {
+        return new JsWarmerUpper.Builder(executor, repository);
     }
 
     public static class Builder {
         // Required parameters
         private final NashornExecutor<JsComponents> executor;
+        private final TodoRepository repository;
 
         // Optional parameters
         long targetDuration = 10; // milliseconds
         int maxRuns = 1000;
         List<WarmupListener> listeners = new ArrayList<>();
 
-        public Builder(NashornExecutor<JsComponents> executor) {
+        public Builder(NashornExecutor<JsComponents> executor, TodoRepository repository) {
             this.executor = executor;
+            this.repository = repository;
         }
 
         public Builder targetDuration(int targetDuration, TimeUnit unit) {
@@ -113,10 +118,10 @@ public final class JsWarmerUpper {
         private final NashornExecutor<JsComponents> executor;
         private final String json;
 
-        public TodoAppWarmer(NashornExecutor<JsComponents> executor) {
+        public TodoAppWarmer(NashornExecutor<JsComponents> executor, TodoRepository repository) {
             this.executor = executor;
             final Map<String, Object> data = new HashMap<>();
-            data.put("todos", new ArrayList<String>());
+            data.put("todos", repository.findAll());
             this.json = toJson(data);
         }
 

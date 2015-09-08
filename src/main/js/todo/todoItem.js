@@ -1,4 +1,5 @@
-import React from "react/addons";
+import React from "react";
+import cx from "classnames";
 
 const ESCAPE_KEY = 27;
 const ENTER_KEY = 13;
@@ -67,7 +68,7 @@ export default React.createClass({
 
     render: function () {
         return (
-            <li className={React.addons.classSet({
+            <li className={cx({
 					completed: this.props.todo.completed,
 					editing: this.props.editing
 				})}>
