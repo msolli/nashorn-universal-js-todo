@@ -9,6 +9,7 @@
     "build:css": "cp node_modules/todomvc-app-css/index.css public/dist/",
     "build:js": "npm run build:js:client && npm run build:js:server",
     "build:js:client": "webpack --config webpack.client-config.js",
+    "watch:js:client": "webpack --config webpack.client-config.js --watch",
     "build:js:server": "webpack --config webpack.server-config.js",
     "watch:js:server": "webpack --config webpack.server-config.js --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
