@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -74,11 +75,12 @@ public class JsRenderer implements WarmupListener {
 
     private <T, S> Function<T, S> withTiming(Function<T, S> fn, String name) {
         return t -> {
-            final long start = System.currentTimeMillis();
+            final long start = System.nanoTime();
             try {
                 return fn.apply(t);
             } finally {
-                LOG.info("{}: {} ms", name, System.currentTimeMillis() - start);
+                long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+                LOG.info("{}: {} ms", name, elapsed);
             }
         };
     }
