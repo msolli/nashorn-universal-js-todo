@@ -133,7 +133,7 @@ export default React.createClass({
         }
 
         return (
-            <div>
+            <div className="todoapp">
                 <header className="header">
                     <h1>todos</h1>
                     <input
